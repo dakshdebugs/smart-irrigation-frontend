@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AquaSync — Smart Irrigation Dashboard</title>
+ 
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+ 
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+ 
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="shell">
+ 
+  <!-- HEADER -->
+  <header>
+    <div class="logo-group">
+      <div class="logo-icon">💧</div>
+      <div>
+        <div class="logo-text">Aqua<span>Sync</span></div>
+        <div class="logo-sub">Smart Irrigation System</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        LIVE
+      </div>
+      <!-- Populated by backend timestamp field -->
+      <div class="timestamp" id="timestamp">—</div>
+    </div>
+  </header>
+ 
+  <!-- ALERT BAR — shown when soil_moisture_percent < 40 -->
+  <div id="alertBar">
+    <span style="font-size:18px;">⚠️</span>
+    <span id="alertMsg">Soil moisture below threshold — irrigation recommended.</span>
+  </div>
+ 
+  <!-- SENSOR DATA CARDS -->
+  <!-- All values populated from GET /latest-data response -->
+  <div class="stats-grid">
+ 
+    <!-- soil_moisture_percent (Capacitive Soil Moisture Sensor) -->
+    <div class="stat-card" id="card-moisture">
+      <span class="stat-icon">🌱</span>
+      <div class="stat-label">Soil Moisture</div>
+      <div class="stat-value" id="val-moisture">—<span class="stat-unit">%</span></div>
+      <div class="stat-trend" id="trend-moisture"></div>
+    </div>
+ 
+    <!-- temperature (DHT11 Temperature & Humidity Sensor) -->
+    <div class="stat-card blue-card">
+      <span class="stat-icon">🌡️</span>
+      <div class="stat-label">Temperature</div>
+      <div class="stat-value" id="val-temp">—<span class="stat-unit">°C</span></div>
+      <div class="stat-trend" id="trend-temp"></div>
+    </div>
+ 
+    <!-- humidity (DHT11 Temperature & Humidity Sensor) -->
+    <div class="stat-card purple-card">
+      <span class="stat-icon">💨</span>
+      <div class="stat-label">Humidity</div>
+      <div class="stat-value" id="val-humidity">—<span class="stat-unit">%</span></div>
+      <div class="stat-trend" id="trend-humidity"></div>
+    </div>
+ 
+    <!-- light_intensity (LDR Light Sensor) -->
+    <div class="stat-card warn-card">
+      <span class="stat-icon">☀️</span>
+      <div class="stat-label">Light Intensity</div>
+      <div class="stat-value" id="val-light">—<span class="stat-unit">lux</span></div>
+      <div class="stat-trend" id="trend-light"></div>
+    </div>
+ 
+    <!-- water_flow_rate -->
+    <div class="stat-card blue-card">
+      <span class="stat-icon">🌊</span>
+      <div class="stat-label">Water Flow Rate</div>
+      <div class="stat-value" id="val-flow">—<span class="stat-unit">L/min</span></div>
+      <div class="stat-trend" id="trend-flow"></div>
+    </div>
+ 
+    <!-- total_water_used -->
+    <div class="stat-card" id="card-totalwater">
+      <span class="stat-icon">🪣</span>
+      <div class="stat-label">Total Water Used</div>
+      <div class="stat-value" id="val-total">—<span class="stat-unit">L</span></div>
+      <div class="stat-trend" id="trend-total"></div>
+    </div>
+ 
+    <!-- irrigation_duration -->
+    <div class="stat-card purple-card">
+      <span class="stat-icon">⏱️</span>
+      <div class="stat-label">Irrigation Duration</div>
+      <div class="stat-value" id="val-duration">—<span class="stat-unit">s</span></div>
+      <div class="stat-trend" id="trend-duration"></div>
+    </div>
+ 
+    <!-- pump_status (Relay Module) -->
+    <div class="stat-card" id="card-pump">
+      <span class="stat-icon">⚡</span>
+      <div class="stat-label">Pump Status</div>
+      <div class="stat-value" id="val-pump-badge" style="font-size:22px; letter-spacing:1px;">—</div>
+      <div class="stat-trend">Manual override available</div>
+    </div>
+ 
+  </div>
+ 
+  <!-- PUMP CONTROL PANEL -->
+  <!-- Button sends POST /pump with { "pump_status": "ON" | "OFF" } -->
+  <div class="mid-row">
+    <div class="panel">
+      <div class="panel-title">Pump Control Unit</div>
+      <div class="pump-body">
+        <div class="pump-ring" id="pumpRing">
+          <span class="pump-icon" id="pumpIcon">⚙️</span>
+        </div>
+        <div>
+          <div class="pump-status-text" id="pumpStatusText">—</div>
+        </div>
+        <div class="pump-meta" id="pumpMeta">Loading…</div>
+        <button class="btn-pump" id="pumpBtn" onclick="togglePump()">—</button>
+      </div>
+    </div>
+ 
+    <!-- WATER EFFICIENCY SCORE PANEL -->
+    <!-- Computed by backend — expects efficiency_score (0–100) in API response -->
+    <!-- If not available yet, backend can omit the field and frontend will show "—" -->
+    <div class="panel">
+      <div class="panel-title">Water Efficiency Score</div>
+      <div class="efficiency-body">
+        <div class="eff-score-row">
+          <div class="eff-score" id="effScore">—</div>
+          <div class="eff-max">/ 100</div>
+        </div>
+        <div class="eff-grade" id="effGrade">Awaiting data…</div>
+        <div class="eff-bar-wrap">
+          <div class="eff-bar" id="effBar" style="width:0%"></div>
+        </div>
+        <div class="eff-factors">
+          <div class="eff-factor">
+            <span class="eff-factor-label">Moisture Adequacy</span>
+            <span class="eff-factor-val" id="ef-moisture">—</span>
+          </div>
+          <div class="eff-factor">
+            <span class="eff-factor-label">Temperature Stress</span>
+            <span class="eff-factor-val" id="ef-temp">—</span>
+          </div>
+          <div class="eff-factor">
+            <span class="eff-factor-label">Water Consumption</span>
+            <span class="eff-factor-val" id="ef-water">—</span>
+          </div>
+          <div class="eff-factor">
+            <span class="eff-factor-label">Humidity Balance</span>
+            <span class="eff-factor-val" id="ef-humidity">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+ 
+  <!-- CHARTS -->
+  <!-- Populated from live API data — last 20 readings -->
+  <div class="charts-row">
+ 
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div class="chart-title">Soil Moisture — Live</div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#00dc82"></div>
+            Moisture %
+          </div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="moistureChart"></canvas>
+      </div>
+    </div>
+ 
+    <div class="chart-panel">
+      <div class="chart-header">
+        <div class="chart-title">Temperature & Humidity</div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#38bdf8"></div>
+            Temp °C
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#a78bfa"></div>
+            Humidity %
+          </div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="tempHumidChart"></canvas>
+      </div>
+    </div>
+ 
+  </div>
+ 
+  <!-- FOOTER -->
+  <footer>
+    <span>AquaSync v2.4.1 — <span class="accent">Live Data Mode</span></span>
+    <span>API: <code style="color:var(--blue)">GET http://localhost:5000/latest-data</code></span>
+    <span id="footerTime">—</span>
+  </footer>
+ 
+</div><!-- .shell -->
+ 
+<!-- Dashboard script (loaded after DOM) -->
+<script src="script.js"></script>
+</body>
+</html>
